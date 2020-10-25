@@ -102,7 +102,7 @@ class ModelHeteroMoCo(nn.Module):
         
         # compute loss
         loss_12, q1, k2 = self.contrastive_loss(x1, self.encoder_q0, x2, self.encoder_q1)
-        loss_21, q2, k1 = self.contrastive_loss(x2, self.encoder_q0, x1, self.encoder_q1)
+        loss_21, q2, k1 = self.contrastive_loss(x2, self.encoder_q1, x1, self.encoder_q0)
         loss = loss_12 + loss_21
         k = torch.cat([k1, k2], dim=0)
         

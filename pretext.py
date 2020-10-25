@@ -63,10 +63,10 @@ def train(net, dataloader, train_optimizer, epoch, args):
 def build_model(args):
     "TODO: dynamic model definition"
     encoder_q0 = ModelWithProjection(
-        ASTnnEncoder(128, 100, 6721, 128, args.batch_size, True, None), 
+        ASTnnEncoder(128, 64, 6721, 128, args.batch_size, True, None), 
         out_dim=128)
     encoder_k0 = ModelWithProjection(
-        ASTnnEncoder(128, 100, 6721, 128, args.batch_size, True, None), 
+        ASTnnEncoder(128, 64, 6721, 128, args.batch_size, True, None), 
         out_dim=128)
     encoder_q1 = ModelWithProjection(
         Code2VecEncoder(30002, 50002, 1, 128, 128, 128, 600, 0, 0.1), 
@@ -121,7 +121,7 @@ if True:
     if args.resume is not '':
         checkpoint = torch.load(args.resume)
         model.load_state_dict(checkpoint['state_dict'])
-        opimitzer.load_state_dict([checkpoint['optimizer']])
+        optimizer.load_state_dict(checkpoint['optimizer'])
         epoch_start = checkpoint['epoch'] + 1
         print('Loaded from: {}'.format(args.resume))
     

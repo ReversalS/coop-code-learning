@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import torch
-from gensim.models.word2vec import Word2Vec
 import os
 import json
 import pickle
