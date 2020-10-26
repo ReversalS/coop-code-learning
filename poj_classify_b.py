@@ -131,21 +131,20 @@ if __name__ == '__main__':
         from pretext import build_model
         from collections import namedtuple
         import json
-        with open(args.results_dir + '/args.json', 'r') as f:
+        with open(args.resume + '/args.json', 'r') as f:
             args_dict = json.load(f)
         # https://blog.csdn.net/fuli911/article/details/109178453
         Argument = namedtuple('Argument', args_dict)
         args_h = Argument(**args_dict)
         model_h = build_model(args_h)
-        checkpoint = torch.load(args_h.resume)
+        checkpoint = torch.load(args.resume + '/model_last.pth')
         model_h.load_state_dict(checkpoint['state_dict'])
-        opimitzer.load_state_dict([checkpoint['optimizer']])
-        epoch_start = checkpoint['epoch'] + 1
         print('Loaded from: {}'.format(args.resume))
+        print(model_h.encoder_q1.base_encoder)
         model = nn.Sequential(
             model_h.encoder_q1.base_encoder,
             nn.Linear(128, args.classes)
-        )
+        ).cuda()
     else:
         model = nn.Sequential(
             Code2VecEncoder(args.token_vocab, args.path_vocab, 1,

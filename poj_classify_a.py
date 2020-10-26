@@ -2,6 +2,7 @@ import argparse
 import pandas as pd
 import random
 import torch
+import torch.nn as nn
 import time
 import numpy as np
 from gensim.models.word2vec import Word2Vec
@@ -54,12 +55,26 @@ if __name__ == '__main__':
     BATCH_SIZE = 64
     USE_GPU = True
     MAX_TOKENS = word2vec.syn0.shape[0]
-    print(MAX_TOKENS)
-    assert 0
     EMBEDDING_DIM = word2vec.syn0.shape[1]
 
     if args.resume is not '':
-        pass
+        from pretext import build_model
+        from collections import namedtuple
+        import json
+        with open(args.resume + '/args.json', 'r') as f:
+            args_dict = json.load(f)
+        # https://blog.csdn.net/fuli911/article/details/109178453
+        Argument = namedtuple('Argument', args_dict)
+        args_h = Argument(**args_dict)
+        model_h = build_model(args_h)
+        checkpoint = torch.load(args.resume + '/model_last.pth')
+        model_h.load_state_dict(checkpoint['state_dict'])
+        print('Loaded from: {}'.format(args.resume))
+        print(model_h.encoder_q0.base_encoder)
+        model = nn.Sequential(
+            model_h.encoder_q0.base_encoder,
+            nn.Linear(128, args.classes)
+        ).cuda()
     else:
         model = BatchProgramClassifier(
             EMBEDDING_DIM,HIDDEN_DIM,MAX_TOKENS+1,
@@ -88,15 +103,18 @@ if __name__ == '__main__':
         total = 0.0
         i = 0
         while i < len(train_data):
-            batch = get_batch(train_data, i, BATCH_SIZE)
-            i += BATCH_SIZE
+            batch = get_batch(train_data, i, args.batch_size)
+            i += args.batch_size
             train_inputs, train_labels = batch
             if USE_GPU:
                 train_inputs, train_labels = train_inputs, train_labels.cuda()
 
             model.zero_grad()
             model.batch_size = len(train_labels)
-            model.hidden = model.init_hidden()
+            if type(model).__name__ == 'Sequential':
+                model.hidden = model[0].init_hidden()
+            else:
+                model.hidden = model.init_hidden()
             # print(train_inputs)
             # assert 0
             output = model(train_inputs)
@@ -119,14 +137,17 @@ if __name__ == '__main__':
         total = 0.0
         i = 0
         while i < len(val_data):
-            batch = get_batch(val_data, i, BATCH_SIZE)
-            i += BATCH_SIZE
+            batch = get_batch(val_data, i, args.batch_size)
+            i += args.batch_size
             val_inputs, val_labels = batch
             if USE_GPU:
                 val_inputs, val_labels = val_inputs, val_labels.cuda()
 
             model.batch_size = len(val_labels)
-            model.hidden = model.init_hidden()
+            if type(model).__name__ == 'Sequential':
+                model.hidden = model[0].init_hidden()
+            else:
+                model.hidden = model.init_hidden()
             output = model(val_inputs)
 
             loss = loss_function(output, Variable(val_labels))
@@ -152,14 +173,17 @@ if __name__ == '__main__':
     i = 0
     model = best_model
     while i < len(test_data):
-        batch = get_batch(test_data, i, BATCH_SIZE)
-        i += BATCH_SIZE
+        batch = get_batch(test_data, i, args.batch_size)
+        i += args.batch_size
         test_inputs, test_labels = batch
         if USE_GPU:
             test_inputs, test_labels = test_inputs, test_labels.cuda()
 
         model.batch_size = len(test_labels)
-        model.hidden = model.init_hidden()
+        if type(model).__name__ == 'Sequential':
+            model.hidden = model[0].init_hidden()
+        else:
+            model.hidden = model.init_hidden()
         output = model(test_inputs)
 
         loss = loss_function(output, Variable(test_labels))

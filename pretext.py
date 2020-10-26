@@ -81,7 +81,7 @@ def build_model(args):
     return model.cuda()
 
 
-if True:
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Pretext on c programs')
 
     # lr: 0.06 for batch 512 (or 0.03 for batch 256)

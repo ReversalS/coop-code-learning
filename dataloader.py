@@ -15,7 +15,7 @@ def load_data(part):
     data['astnn'] = data_
 
     # data code2vec
-    with open(root + 'train/data.pkl', 'rb') as f:
+    with open(root + f'{part}/data.pkl', 'rb') as f:
         data_ = pickle.load(f)
     data['code2vec'] = data_
 
