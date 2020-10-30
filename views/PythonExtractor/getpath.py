@@ -44,7 +44,7 @@ class Method:
                + path.right_leaf_value
 
     def print_path(self):
-        return '\n'.join([Method._print_path(p) for p in self.contexts])
+        return [Method._print_path(p) for p in self.contexts]
 
 
 class DataProcessor:
@@ -117,6 +117,73 @@ class DataProcessor:
             if not visited[i] and node["type"] == "FunctionDef":
                 bag_of_paths, _ = traverse(i)
                 yield Method(node['value'], bag_of_paths)
+
+
+def get_program_paths(json_tree, func_idx, max_path_length=None, max_path_width=None):
+    def traverse(i, level=0):
+        node = json_tree[i]
+        # ignore lookup
+        if 'children' in node:
+            bag_of_paths, root_leaf_paths_by_length = [], {}
+            root_leaf_paths_by_length_by_ch = []
+            for ch in node['children']:
+                bag_of_paths_ch, root_leaf_paths_by_length_ch = traverse(ch, level)
+                root_leaf_paths_by_length_by_ch.append(root_leaf_paths_by_length_ch)
+                bag_of_paths.extend(bag_of_paths_ch)
+                for length, paths in root_leaf_paths_by_length_ch.items():
+                    if max_path_length is None or length < max_path_length:
+                        root_leaf_paths_by_length \
+                            .setdefault(length + 1, list()) \
+                            .extend(
+                            HalfPath(
+                                leaf_value=p.leaf_value,
+                                syntactic_half_path=[node['type']] + p.syntactic_half_path,
+                            )
+                            for p in paths)
+            for i1, paths_by_length_ch1 in enumerate(root_leaf_paths_by_length_by_ch):
+                for _, paths_by_length_ch2 in zip(
+                        count(i1 + 1) if max_path_width is None else range(i1 + 1, i1 + max_path_width + 1),
+                        root_leaf_paths_by_length_by_ch[i1 + 1:],
+                ):
+                    for len1, paths1 in paths_by_length_ch1.items():
+                        if max_path_length is None or len1 < max_path_length:
+                            for len2, paths2 in paths_by_length_ch2.items():
+                                if max_path_length is None or len2 < max_path_length - len1 - 1:
+                                    for p1, p2 in product(paths1, paths2):
+                                        syntactic_path = SyntacticPath(
+                                            root_type=node['type'],
+                                            left_half=p1.syntactic_half_path,
+                                            right_half=p2.syntactic_half_path,
+                                        )
+                                        bag_of_paths.append(Path(
+                                            left_leaf_value=p1.leaf_value,
+                                            syntactic_path=syntactic_path,  # todo: to string
+                                            right_leaf_value=p2.leaf_value,
+                                        ))
+            return bag_of_paths, root_leaf_paths_by_length
+        elif 'value' in node:
+            ## is leaf and has token
+            value = node['value']
+            if node['type'] == "Str":
+                value = ''.join(c for c in value if c.isalnum() or c in r'''_-''')
+                if len(value) == 0:
+                    value = "_"
+            return [], {
+                0: [
+                    HalfPath(
+                        leaf_value=value,
+                        syntactic_half_path=[node['type']],
+                    ),
+                ],
+            }
+        else:
+            return [], {}
+
+    global_paths = []
+    bag_of_paths, _ = traverse(func_idx)
+    method = Method(json_tree[func_idx]['value'] if hasattr(json_tree[func_idx], 'value') else '', bag_of_paths)
+    global_paths += method.print_path()
+    return global_paths
 
 
 def main():
