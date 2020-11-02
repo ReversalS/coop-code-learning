@@ -10,12 +10,26 @@ class Pipeline:
     def __init__(self, ratio, root):
         self.ratio = ratio
         self.root = root
+
+        # the tuples of function names and its places
+        # e.g It may like [['FUNCNAME1', 1, 35], ['FUNCNAME2', 3, 49],...]
+        #     It means: in the first json tree, the 35th node's type == 'FunctionDef'
+        #               in the third json tree, the 49th node's type == 'FunctionDef'
         self.sources = None
+
+        # the json trees file
+        # example can be found in ./data/cjson.txt
+        # note that every line in this file is a json tree
         self.source_json_file = None
+
+        # the Dict of path
         self.pc_dict = None
         self.pc_dict_num = 0
 
+    # find all the node whose type == 'FunctionDef'
+    # the results are pushed into self.sources
     def load_json_and_find_FunctionDef(self, filename):
+        # DFS
         def traverse_in_json(node_idx):
             if js[node_idx]['type'] == 'FunctionDef':
                 self.sources.append([js[node_idx]['value'], json_idx, node_idx])
@@ -54,16 +68,6 @@ class Pipeline:
                     os.path.exists(dev_file_path) and \
                     os.path.exists(test_file_path):
                 return
-            # train_path = self.root + 'train/'
-            # check_or_create(train_path)
-            # self.train_file_path = train_path + 'train_.pkl'
-            # dev_path = self.root + 'dev/'
-            # check_or_create(dev_path)
-            # self.dev_file_path = dev_path + 'dev_.pkl'
-            # test_path = self.root + 'test/'
-            # check_or_create(test_path)
-            # self.test_file_path = test_path + 'test_.pkl'
-            # return
 
         data = self.sources
         data_num = len(data)
@@ -75,18 +79,22 @@ class Pipeline:
         dev = data[train_split:val_split]
         test = data[val_split:]
 
+        # We sort the dataset tuples FOR THE USE IN dump_path_context_dataset::extract_context
         train = sorted(train, key=lambda x: x[1])
         dev = sorted(dev, key=lambda x: x[1])
         test = sorted(test, key=lambda x: x[1])
 
+        # save them into txt file
         _to_txt(train_file_path, train)
         _to_txt(dev_file_path, dev)
         _to_txt(test_file_path, test)
 
+    # get pc
     def dump_path_context_dataset(self, max_path_length, max_path_width):
         "Use the json trees to parse context (of entire program)"
 
         from views.PythonExtractor.getpath import get_program_paths
+        # words to ID by using self.pc_dict
         def compress_with_dict(path):
             words = path.split('-')
             compressed_pc = []
@@ -99,11 +107,19 @@ class Pipeline:
 
         def extract_context(input_path, output_path):
             dataset = []
+
+            # e.g It may like [['FUNCNAME1', 1, 35], ['FUNCNAME2', 3, 49],...]
+            # note that they are sorted by the second para, which is the line ID of json tree
             tree_tuples = pd.read_table(input_path, header=None).values
+
             cur_idx = 0
             num_tuples = len(tree_tuples)
             with open(self.source_json_file, 'r') as ftree:
+                # since the json trees file may be vary large, we don't want to read them all into memory
+                # so, each time we read ONE line (or you can call it one tree) into memory,
+                # and run `get_program_paths` for all the related tuples
                 for line_idx, line in enumerate(tqdm(ftree.readlines())):
+                    # if there are 3 functions in this tree, we will run it 3 times
                     while line_idx == tree_tuples[cur_idx][1]:
                         json_tree = json.loads(line)
                         path_contexts = get_program_paths(json_tree, tree_tuples[cur_idx][2], max_path_length,
@@ -127,18 +143,6 @@ class Pipeline:
         with open(self.root + "dict.pkl", "wb") as f:
             pickle.dump(self.pc_dict, f)
 
-    # def filter_path_context_dataset(self):
-    #     "To somehow reduce total path count by removing useless(?) paths."
-    #
-    #     def filter_(input_path, output_path):
-    #         with open(input_path, 'r') as fin, open(output_path, 'w') as fout:
-    #             filtered = filter_paths(json.load(fin))
-    #             json.dump(filtered, fout)
-    #
-    #     filter_(self.train_file_path + 'path_context.json', self.train_file_path + 'path_context_filtered.json')
-    #     filter_(self.dev_file_path + 'path_context.json', self.dev_file_path + 'path_context_filtered.json')
-    #     filter_(self.test_file_path + 'path_context.json', self.test_file_path + 'path_context_filtered.json')
-
     # run for processing data to train
     def run(self):
         print('load json dataset...')
@@ -147,9 +151,10 @@ class Pipeline:
         self.split_data(cached=True)
         print("Dump path contexts...")
         self.dump_path_context_dataset(max_path_length=10, max_path_width=2)
-        print("Filter path contexts...")
+        # print("Filter path contexts...")
         # self.filter_path_context_dataset()
 
+        # TODO list
         # print('train word embedding...')
         # self.dictionary_and_embedding(None, 128)
         # print('generate block sequences...')
